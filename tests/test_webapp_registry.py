@@ -67,12 +67,23 @@ def test_placeholder_classification_never_selects():
 
 class _StubDraft:
     def complete_json(self, system, user, schema, schema_name, sampling=None):
-        return {"type": "object", "properties": {"kwota": {"x-source": "text"}}}
+        return {
+            "fields": [
+                {"name": "kwota", "type": "string", "x_source": "text", "description": "Kwota faktury"},
+                {"name": "data", "type": "string", "x_source": "normalized", "description": "Data ISO"},
+            ]
+        }
 
     def close(self):
         pass
 
 
-def test_draft_schema_returns_llm_dict():
+def test_draft_schema_builds_house_style_schema(tmp_path):
     out = draft_schema("Faktura ... kwota 100 zł", _StubDraft())
+    assert out["type"] == "object"
+    assert set(out["required"]) == {"kwota", "data"}
     assert out["properties"]["kwota"]["x-source"] == "text"
+    assert out["properties"]["kwota"]["type"] == ["string", "null"]
+    assert out["properties"]["data"]["x-source"] == "normalized"
+    # the drafted schema must itself be registrable (valid for DocType validation)
+    register_type("faktura_ai", "Faktura", out, tmp_path)

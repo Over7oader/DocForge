@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 
 import streamlit as st
+from dotenv import load_dotenv
 
 from doxforge import settings
 from doxforge.doc_types import DocType, load_doc_types
@@ -23,7 +24,6 @@ from webapp.run import CaseResult, run_pdf
 st.set_page_config(page_title="DoxForge - Odwolania2json", layout="wide")
 
 _DOT = {"full": "🟢", "partial": "🟡", "split": "🔴", "none": "⚪", "rules": "🔧"}
-_MIN_MEMBERS = 2  # below this there is no ensemble agreement signal
 
 
 # --- helpers ----------------------------------------------------------------
@@ -51,8 +51,6 @@ def _render_viewer(case: CaseResult) -> None:
 
     value_map = dict(leaves(case.result))
     st.caption(f"Klasa: **{case.doc_class}**")
-    if 0 < case.member_count < _MIN_MEMBERS:
-        st.caption("⚪ Jeden model — brak sygnału zgodności ensemble.")
 
     left, right = st.columns([3, 2])
     with right:
@@ -77,9 +75,7 @@ def _render_viewer(case: CaseResult) -> None:
         if selected:
             if prov and prov.status == "source" and prov.page is not None:
                 st.caption(f"Pole **{selected}** — strona {prov.page + 1}")
-            elif prov and prov.status == "derived":
-                st.caption(f"Pole **{selected}** — wartość wywnioskowana lub znormalizowana, brak źródła")
-            else:
+            elif prov and prov.status == "absent":
                 st.caption(f"Pole **{selected}** — brak wartości w tekście")
         for page_index, text in enumerate(case.pages):
             body = (
@@ -96,6 +92,7 @@ def _render_viewer(case: CaseResult) -> None:
 
 # --- app --------------------------------------------------------------------
 def main() -> None:
+    load_dotenv(settings.ENV_FILE)  # like the CLI: read .env (real env vars take precedence)
     doc_types = load_doc_types()
     llm = load_llm_settings()
 
@@ -106,8 +103,6 @@ def main() -> None:
         else:
             members = [llm.model, *llm.extra_models]
             st.success(f"LLM: {', '.join(members)} x{llm.samples}")
-            if len(members) * llm.samples < _MIN_MEMBERS:
-                st.caption("Dla sygnału zgodności skonfiguruj 2-3 modele w `OPENROUTER_MODEL`.")
         st.caption("Klasy: " + ", ".join(doc_types))
 
     viewer_tab, register_tab = st.tabs(["Podgląd ekstrakcji", "Zarejestruj typ"])
@@ -162,9 +157,10 @@ def _render_register(doc_types: dict[str, DocType], llm: LLMSettings | None) -> 
                     with st.spinner("Model proponuje schemat…"):
                         schema = draft_schema(load_document(path).text, client)
                 st.session_state.draft_schema = json.dumps(schema, ensure_ascii=False, indent=2)
+            except Exception as error:  # a model hiccup must not crash the page
+                st.error(f"Nie udało się zaproponować schematu: {error}. Spróbuj ponownie lub użyj Mode B.")
             finally:
-                if client is not None:
-                    client.close()
+                client.close()
         draft = st.session_state.get("draft_schema", "")
 
     name = st.text_input("Nazwa typu (małe litery, cyfry, _)", key="reg_name")

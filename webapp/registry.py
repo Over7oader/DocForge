@@ -20,11 +20,35 @@ from doxforge.llm.ensemble import JsonCompleter
 _REGISTERED = ".registered.json"
 
 _DRAFT_SYSTEM = (
-    "Projektujesz schemat JSON (JSON Schema draft 2020-12) do ekstrakcji danych z podanego "
-    "dokumentu, w stylu projektu: każde pole ma typ, krótki opis (description) oraz x-source "
-    "('text' = występuje dosłownie, 'normalized' = sprowadzone do formatu, 'derived' = wywnioskowane). "
-    "Zwróć wyłącznie obiekt schematu."
+    "Projektujesz listę pól do ekstrakcji danych z podanego dokumentu. Dla każdego pola podaj: "
+    "name (krótki klucz, małe litery i podkreślenia), type, x_source ('text' = występuje dosłownie, "
+    "'normalized' = sprowadzone do formatu np. data ISO, 'derived' = wywnioskowane) oraz krótki "
+    "description po polsku. Zaproponuj pola najważniejsze dla tego typu dokumentu."
 )
+
+# A strict schema the provider can fill reliably (unlike a free-form schema, which models return as
+# prose/fenced text). draft_schema turns the returned field list into a house-style JSON Schema.
+_FIELDS_SCHEMA: dict[str, JsonValue] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["fields"],
+    "properties": {
+        "fields": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["name", "type", "x_source", "description"],
+                "properties": {
+                    "name": {"type": "string"},
+                    "type": {"type": "string", "enum": ["string", "integer", "number", "boolean", "array"]},
+                    "x_source": {"type": "string", "enum": ["text", "normalized", "derived"]},
+                    "description": {"type": "string"},
+                },
+            },
+        }
+    },
+}
 
 
 def placeholder_classification() -> dict[str, JsonValue]:
@@ -85,8 +109,29 @@ def register_type(
 
 
 def draft_schema(text: str, completer: JsonCompleter) -> dict[str, JsonValue]:
-    """Mode A: ask the LLM to propose a JSON Schema (house style) for an unknown document."""
-    result = completer.complete_json(_DRAFT_SYSTEM, text[:12000], {"type": "object"}, "draft_schema")
-    if not isinstance(result, dict):
-        raise ValueError("Model did not return a schema object")
-    return result
+    """Mode A: ask the LLM for a field list, then build a house-style JSON Schema from it."""
+    result = completer.complete_json(_DRAFT_SYSTEM, text[:12000], _FIELDS_SCHEMA, "draft_schema")
+    fields = result.get("fields") if isinstance(result, dict) else None
+    if not isinstance(fields, list) or not fields:
+        raise ValueError("Model did not propose any fields")
+    properties: dict[str, JsonValue] = {}
+    for field in fields:
+        if not isinstance(field, dict):
+            continue
+        name = field.get("name")
+        if not isinstance(name, str):
+            continue
+        properties[name] = {
+            "type": [field.get("type", "string"), "null"],
+            "x-source": field.get("x_source", "text"),
+            "description": field.get("description", ""),
+        }
+    if not properties:
+        raise ValueError("Model did not propose any usable fields")
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": False,
+        "required": list(properties),
+        "properties": properties,
+    }
