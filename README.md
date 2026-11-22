@@ -59,8 +59,9 @@ Co daje (cała logika w `webapp/`, rdzeń pipeline'u bez zmian):
   wartość (strona + fragment). Wartości znormalizowane/wywnioskowane dostają etykietę zamiast
   fałszywego podświetlenia.
 - **Pewność ensemble** — kolor pola według zgodności modeli (🟢 pełna, 🟡 większość, 🔴 rozbieżność,
-  ⚪ brak sygnału, 🔧 wartość z reguł). Sygnał pojawia się, gdy skonfigurowano kilka modeli
-  (`OPENROUTER_MODEL` po przecinku) lub `OPENROUTER_SAMPLES>1`.
+  ⚪ brak sygnału, 🔧 wartość z reguł). Sygnał pojawia się w trybie OpenRouter, gdy skonfigurowano
+  kilka modeli (`OPENROUTER_MODEL` po przecinku) lub `OPENROUTER_SAMPLES>1`; przy jednym modelu
+  (domyślny Mistral) pole pokazuje brak sygnału.
 - **Rejestracja typu** — dodaj nowy typ dokumentu z przeglądarki: Mode B (podajesz JSON Schema)
   lub Mode A (LLM proponuje schemat z PDF). Zapisuje jeden plik `config/doc_types/<nazwa>.yaml`;
   typ jest rozpoznawany klasyfikatorem LLM przy kolejnym wgraniu. Dokument spoza typów nadal daje `{}`.
@@ -103,10 +104,12 @@ nie odczytuje etykiet ani holdoutu. Szczegóły i ograniczenia pomiaru:
 
 ### LLM (opcjonalny)
 
-OpenRouter jest przygotowany w `.env.example`. W lokalnym `.env` ustaw
-`DOXFORGE_LLM=openrouter` i wklej `OPENROUTER_API_KEY`. Uruchom `./start.sh`
-lub `start.bat`. Zmienne `LLM_*` są używane przez tryb `openai_compatible`.
-Klucz bezpośredniego Mistrala nie jest używany do uwierzytelnienia w OpenRouterze.
+Domyślnie (`DOXFORGE_LLM=openai_compatible`) model `ministral-8b-2512` jest wywoływany
+bezpośrednio przez API Mistral AI w regionie UE (`LLM_BASE_URL=https://api.eu.mistral.ai/v1/`,
+`LLM_MODEL`, `LLM_API_KEY` w `.env`). Klient sam dopasowuje odstęp między zapytaniami do limitu
+z nagłówka `x-ratelimit-limit-req-minute` (użyty klucz: 750/min). Uruchom `./start.sh` lub `start.bat`.
+
+Alternatywa, wyłączona: OpenRouter (`DOXFORGE_LLM=openrouter`, `OPENROUTER_*` w `.env.example`).
 
 Żądania OpenRouter zawierają `provider.only`, `allow_fallbacks=false`,
 `require_parameters=true` oraz `data_collection=deny`. Model musi obsługiwać JSON Schema.

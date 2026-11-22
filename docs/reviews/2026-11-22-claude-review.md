@@ -155,3 +155,10 @@ seedach 4–6, aug-hard2 i świeżym aug-hard3 (seed 23). Ogólne poprawki:
 
 Ensemble 3B×5 nie poprawia wyniku w istotnym stopniu (65 vs 69 błędów przed poprawkami).
 Wybór 3B vs 8B zależy od nieopublikowanej wagi punktów za rozmiar modelu względem F1.
+
+## Dostawca LLM do oceny
+
+Decyzja: `ministral-8b-2512` bezpośrednio przez API Mistral AI w regionie UE
+(`DOXFORGE_LLM=openai_compatible`, `https://api.eu.mistral.ai/v1/`). OpenRouter wyłączony; na VM `.env`
+zawiera tylko zmienne Mistrala i OCR. Limit klucza z nagłówków: 750 zapytań/min, 1 mln tokenów/min;
+klient dopasowuje odstęp automatycznie. Kod na VM sprawdzony sumami SHA-256 względem lokalnego (93 pliki).

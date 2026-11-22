@@ -86,3 +86,6 @@ Runda odporności (2026-11-22, Claude): stress_reflow.py (łamanie linii, seedy 
 x-spelling, flags, similar, diakrytyki z innego silnika, naprawy OCR rachunków). Walidacja na świeżych
 seedach 4/5: 0,9995/0,9998, aug-hard2 0,9949, hold-out exact 0,955 (proxy 0,981). Nie stroić pod
 pojedyncze wartości; nowe poprawki sprawdzać na świeżym seedzie.
+Decyzja użytkownika (2026-11-22 rano): zostaje ministral-8b-2512, bezpośrednio Mistral EU
+(DOXFORGE_LLM=openai_compatible, api.eu.mistral.ai); OpenRouter wyłączony (na VM .env bez OPENROUTER_*).
+Klucz Mistrala ma 750 req/min i 1 mln tokenów/min. Kod na VM weryfikowany sumami SHA-256 (93 pliki).
