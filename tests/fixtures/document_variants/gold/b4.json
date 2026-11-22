@@ -1,0 +1,24 @@
+{
+  "mocodawca": [
+    {
+      "data": {
+        "typ": "osoba_prawna",
+        "nazwa": "Warsztat Sitodruku sp. z o.o.",
+        "imie_nazwisko": null,
+        "nip": "4445556677",
+        "krs": null
+      },
+      "podpisujacy": [
+        {
+          "imie_nazwisko": "Ewa Sawicka"
+        }
+      ]
+    }
+  ],
+  "pelnomocnicy": [
+    {
+      "imie_nazwisko": "Jan Lis",
+      "pesel": null
+    }
+  ]
+}

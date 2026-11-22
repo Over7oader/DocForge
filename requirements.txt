@@ -1,0 +1,13 @@
+# Zależności uruchomieniowe (Python 3.13+). Narzędzia dev: requirements-dev.txt
+httpx==0.28.1          # klient API LLM
+jsonschema==4.26.0
+numpy==2.5.5          # obraz strony do OCR (pypdfium2 -> ndarray)
+onnxruntime==1.32.0   # silnik modeli OCR na CPU
+opencv-python-headless==5.1.0.95  # skala szarości dla Tesseracta (import cv2 w ocr.py)
+pydantic==2.14.4
+pypdfium2==5.15.2
+python-dotenv==1.2.4   # konfiguracja z pliku .env
+PyYAML==6.0.4
+rapidfuzz==3.14.6      # sprawdzanie wartości z LLM z tekstem (odporne na OCR)
+rapidocr==3.10.0      # OCR (PP-OCRv6); modele pobierane przy pierwszym użyciu
+tesserocr==2.13.0     # Tesseract 5 (koła zawierają silnik); pol+eng tessdata_best

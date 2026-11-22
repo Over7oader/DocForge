@@ -1,0 +1,31 @@
+# Konfiguracja narzędzi. Zależności są w requirements*.txt (wymóg organizatora).
+[project]
+name = "doxforge"
+version = "0.1.0"
+description = "Odwołania2json: dokumenty PDF sprawy odwoławczej KIO -> kanoniczny JSON"
+requires-python = ">=3.13"
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+extend-exclude = ["data", "runs", "tmp", "docs"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "PL", "N", "PTH", "LOG", "G"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+exclude = ["^data/", "^runs/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["dataset: wymaga zbioru organizatora (scripts/fetch_dataset.sh)"]
+
+[[tool.mypy.overrides]]
+# pypdfium2 nie publikuje znacznika py.typed ani stubów (sprawdzone dla 5.15.2).
+module = ["pypdfium2", "pypdfium2.*", "tesserocr"]
+ignore_missing_imports = true

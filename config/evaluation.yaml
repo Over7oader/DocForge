@@ -1,0 +1,13 @@
+# Podział zbioru organizatora na część roboczą (train) i kontrolną (holdout).
+# Holdout = skany o numerach z listy holdout_scans (w każdym z 3 katalogów skanów) + poniższe negatywy.
+# Pozostałe skany (0001-0005) są w części train i służą do analizy błędów OCR.
+# Na holdoucie nie stroimy reguł ani promptów; oceniamy go raz na kamień milowy (ANALIZA.md §6, §14).
+# Historia: do M4 cały katalog skanów był holdoutem; po pierwszym pomiarze (F1 0.686) podzielony na pół,
+# bo bez skanów w części roboczej nie da się poprawiać błędów OCR.
+# Wybrane negatywy nie mają kopii w innych katalogach zbioru (sprawdza to test przecieku).
+holdout_negatives:
+  - "2025_S 188-641009.pdf"
+  - "Decyzja-Ministra-Sportu-i-Turystyki1.pdf"
+  - "16_komisja_ds._regulacji_wynagrodzeń.pdf"
+  - "Minister-Sprawiedliwosci-pismo-RDSSP-z-11.03.2024-r..pdf"
+holdout_scans: ["0006", "0007", "0008", "0009", "0010"]

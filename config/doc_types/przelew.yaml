@@ -1,0 +1,107 @@
+# Klasa dokumentu: potwierdzenie przelewu bankowego. Opis słów kluczowych x-source: config/doc_types/odwolanie.yaml
+# Format wyniku: https://github.com/Urzad-Zamowien-Publicznych/hacknation-2026/blob/main/oczekiwane-json/przelew.json
+name: przelew
+description: >-
+  Potwierdzenie wykonania przelewu bankowego (np. wpisu od odwołania albo opłaty skarbowej
+  od pełnomocnictwa), wygenerowane przez bank.
+
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  additionalProperties: false
+  required: [przelew_bankowy]
+  properties:
+    przelew_bankowy:
+      type: object
+      additionalProperties: false
+      required: [data_operacji, kwota, na_rachunek, numer_transakcji, tytul, z_rachunku]
+      properties:
+        data_operacji:
+          type: [string, "null"]
+          format: date
+          x-source: normalized
+          x-type: date
+          description: "Data wykonania / transakcji (ISO), nie data wygenerowania potwierdzenia."
+        kwota: {type: [number, "null"], x-source: normalized, x-type: amount, description: "Kwota przelewu jako liczba."}
+        na_rachunek:
+          type: [string, "null"]
+          pattern: '^(\d{26}|[A-Z]{2}\d{2}[A-Z0-9]{11,30})$'
+          x-source: text
+          x-type: iban
+          description: "Rachunek odbiorcy: bez spacji, zachowaj kod kraju, jeśli jest w dokumencie."
+        numer_transakcji: {type: [string, "null"], x-source: text, x-spelling: majority, description: "Numer referencyjny transakcji, jeśli podany."}
+        tytul: {type: [string, "null"], x-source: text, description: "Tytuł przelewu w całości."}
+        z_rachunku:
+          type: [string, "null"]
+          pattern: '^(\d{26}|[A-Z]{2}\d{2}[A-Z0-9]{11,30})$'
+          x-source: text
+          x-type: iban
+          description: "Rachunek nadawcy: bez spacji, zachowaj kod kraju, jeśli jest w dokumencie."
+
+# Wzorce w classification/extraction: tekst złożony (małe litery, bez polskich znaków, "ł" -> "l").
+classification:
+  min_score: 5
+  rules:
+    - {pattern: 'przelew|potwierdzenie (transakcji|operacji)|dowod wykonania', weight: 4, zone: title}
+    - {pattern: 'rachun', weight: 1}
+    - {pattern: 'kwot', weight: 1}
+    - {pattern: 'tytul|opis|szczegoly platnosci', weight: 1}
+    - {pattern: 'odbiorc|beneficjent|kontrahent|adresat|nadawc|zleceniodawc|platnik', weight: 1}
+    - {pattern: '^\s*odwo.ujac\w*\s*:', weight: -4}  # blok stron w odwołaniu
+
+extraction:
+  sections:
+    nadawca:
+      start: ['^\s*dane (zleceniodawcy|nadawcy|platnika)', '^\s*(zleceniodawca|nadawca|platnik)\b']
+      end: ['^\s*dane (odbiorcy|kontrahenta|beneficjenta|adresata)', '^\s*(odbiorca|beneficjent|adresat)']
+      max_chars: 600
+    odbiorca:
+      start: ['^\s*dane (odbiorcy|kontrahenta|beneficjenta|adresata)', '^\s*(odbiorca|beneficjent|adresat)']
+      max_chars: 600
+  fields:
+    przelew_bankowy.data_operacji:
+      kind: labeled
+      labels: ['data (wykonania|transakcji|operacji|realizacji|ksiegowania)', 'zlecona data wykonania', 'w dniu']
+      type: date
+      window: 80
+    przelew_bankowy.kwota:
+      kind: labeled
+      labels: ['kwota( przelewu| operacji| transakcji)?', 'w kwocie', '^\s*wartosc']
+      type: amount
+      window: 120
+    przelew_bankowy.na_rachunek:
+      - kind: labeled
+        labels: ['rachunek (odbiorcy|beneficjenta|kontrahenta|adresata|docelowy)', 'na rachunek']
+        type: iban
+      - {kind: first, type: iban, scope: odbiorca}
+      - {kind: first, type: iban, occurrence: 2}
+    przelew_bankowy.numer_transakcji:
+      kind: labeled
+      labels: ['numer (referencyjny|transakcji|operacji)', 'nr (ref|transakcji|operacji)', 'id(entyfikator)? (transakcji|operacji)', 'referencj']
+      type: token
+      window: 80
+    przelew_bankowy.tytul:
+      kind: labeled
+      labels: ['^\s*tytu.(em| przelewu)?',  # OCR: „Tytut”
+                 '^\s*opis( operacji| transakcji)?', 'szczegoly platnosci', '^\s*tresc']
+      type: text
+      continuation: ['(numer|nr|status|waluta|typ|oplata|kanal|tryb|data|kwota|wartosc|rachunek|z rachunku|na rachunek|zleceniodawca|odbiorca|platnik|adresat|nadawca|beneficjent|identyfikator|referencj|bank|potwierdzenie|dokument|signature)\b']
+    przelew_bankowy.z_rachunku:
+      - kind: labeled
+        labels: ['z rachunku', 'rachunek (obciazany|zleceniodawcy|nadawcy|platnika|wlasny)']
+        type: iban
+      - {kind: first, type: iban, scope: nadawca}
+      - {kind: first, type: iban}
+
+# Ekstrakcja LLM i scalanie z regułami (doxforge/llm/extract.py).
+llm:
+  max_chars: 6000
+  instructions:
+    - "Rachunki przepisuj bez whitespace. Zachowaj PL lub inny kod kraju obecny w dokumencie, nie dodawaj go, gdy go brak."
+    - "z_rachunku to rachunek nadawcy (płatnika, zleceniodawcy); na_rachunek to rachunek odbiorcy (beneficjenta, kontrahenta)."
+    - "data_operacji to data wykonania, realizacji lub transakcji, nie data wydruku ani wygenerowania potwierdzenia."
+    - "tytul to pełny tytuł (opis) przelewu, przepisany dokładnie."
+    - "numer_transakcji to numer referencyjny lub identyfikator transakcji, jeśli jest w dokumencie."
+  default_policy: rules
+  policies:
+    przelew_bankowy.tytul: llm

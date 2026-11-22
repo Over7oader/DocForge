@@ -1,0 +1,4 @@
+# Web GUI (Streamlit). Install on top of requirements.txt:
+#   pip install -r requirements.txt -r requirements-web.txt
+#   streamlit run app.py
+streamlit>=1.40

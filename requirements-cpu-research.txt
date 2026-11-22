@@ -1,0 +1,2 @@
+# Optional isolated experiment, not a runtime dependency of the submitted pipeline.
+morfeusz2==1.99.15

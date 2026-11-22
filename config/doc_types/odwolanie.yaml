@@ -1,0 +1,309 @@
+# Klasa dokumentu: odwołanie do Prezesa KIO.
+# Format wyniku: https://github.com/Urzad-Zamowien-Publicznych/hacknation-2026/blob/main/oczekiwane-json/odwolanie.json
+#
+# Własne słowa kluczowe w schemacie (ignorowane przez walidator JSON Schema):
+#   x-source: text        - wartość występuje w dokumencie dosłownie (po usunięciu spacji i myślników)
+#   x-source: normalized  - wartość z dokumentu sprowadzona do formatu (data ISO, numer TED, kwota)
+#   x-source: derived     - wartość ustalana na podstawie treści (klasyfikacja, flaga)
+name: odwolanie
+description: >-
+  Odwołanie wnoszone do Prezesa Krajowej Izby Odwoławczej przez wykonawcę od czynności
+  lub zaniechania zamawiającego w postępowaniu o udzielenie zamówienia publicznego.
+
+vocabularies:
+  czynnosc_powod:
+    1: Decyzja o odrzuceniu oferty
+    2: Ogłoszenie wyboru oferty
+    3: Decyzja o wykluczeniu wykonawcy
+    4: Publikacja specyfikacji warunków zamówienia (SWZ)
+    5: Modyfikacja treści SWZ
+    6: Odpowiedzi/wyjaśnienia do SWZ
+    7: Zaniechanie odrzucenia oferty
+    8: Zaniechanie wykluczenia wykonawcy
+    9: Decyzja o unieważnieniu postępowania
+    10: Zaniechanie unieważnienia postępowania
+    11: Opis przedmiotu zamówienia (OPZ)
+    12: Projektowane postanowienia umowy
+
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  additionalProperties: false
+  required: [OdwolanieKIO, Odwolujacy, Zamawiajacy, ZamowieniePubliczne]
+  $defs:
+    nip: {type: [string, "null"], pattern: '^\d{10}$', x-source: text, x-type: nip}
+    regon: {type: [string, "null"], pattern: '^(\d{9}|\d{14})$', x-source: text, x-type: regon}
+    krs: {type: [string, "null"], pattern: '^\d{10}$', x-source: text, x-type: krs}
+    date: {type: [string, "null"], format: date, x-source: normalized, x-type: date}
+  properties:
+    OdwolanieKIO:
+      type: object
+      additionalProperties: false
+      required: [data, czynnosc_dzien, czynnosc_powod_id, czynnosc_opis, miejscowosc]
+      properties:
+        data:
+          $ref: '#/$defs/date'
+          x-evidence: header-line  # wartość z LLM tylko z linii „Miejscowość, dnia …”, nie z treści
+          description: "Data z nagłówka pierwszej strony, z linii typu 'X, dnia DD.MM.RRRR'. Brak takiej linii: null."
+        czynnosc_dzien:
+          $ref: '#/$defs/date'
+          description: >-
+            Data czynności uruchamiającej bieg terminu odwołania dla pierwszego zarzutu
+            (pierwszej zaskarżonej czynności). Brak wiarygodnej daty: null.
+        czynnosc_powod_id:
+          type: [integer, "null"]
+          x-source: derived
+          description: "Identyfikator powodu (słownik czynnosc_powod), ustalany wyłącznie na podstawie pierwszego zarzutu."
+        czynnosc_opis:
+          type: [string, "null"]
+          x-source: derived
+          description: "Kanoniczny opis ze słownika czynnosc_powod, zgodny 1:1 z czynnosc_powod_id."
+        miejscowosc:
+          type: [string, "null"]
+          x-source: text
+          x-evidence: header-line
+          description: "Miejscowość z nagłówka pierwszej strony, z linii typu 'X, dnia ...' albo 'X DD.MM.RRRR'."
+    Odwolujacy:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        required: [krs, nazwa, nip, regon, przez-pelnomocnika, pelnomocnik]
+        properties:
+          krs: {$ref: '#/$defs/krs', description: "KRS Odwołującego lub lidera konsorcjum."}
+          nazwa:
+            type: [string, "null"]
+            x-source: text
+            x-type: organization
+            description: "Pełna nazwa Odwołującego; przy konsorcjum nazwa lidera."
+          nip: {$ref: '#/$defs/nip', description: "NIP Odwołującego lub lidera konsorcjum."}
+          regon: {$ref: '#/$defs/regon', description: "REGON Odwołującego lub lidera konsorcjum."}
+          przez-pelnomocnika:
+            enum: [0, 1, null]
+            x-source: derived
+            description: "1 - odwołanie wnosi pełnomocnik, 0 - nie."
+          pelnomocnik:
+            type: object
+            additionalProperties: false
+            required: [imie_nazwisko, nazwa, mail]
+            properties:
+              imie_nazwisko:
+                type: [string, "null"]
+                x-source: text
+                x-type: name
+                description: "Imię i nazwisko pełnomocnika w mianowniku (pierwszy wymieniony), bez tytułu zawodowego."
+              nazwa:
+                type: [string, "null"]
+                x-source: text
+                x-type: organization
+                description: "Nazwa podmiotu zatrudniającego pełnomocnika (kancelaria)."
+              mail:
+                type: [string, "null"]
+                x-source: text
+                x-type: email
+                description: "Adres e-mail kontaktowy do pełnomocnika."
+    Zamawiajacy:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        required: [krs, nazwa, nip, regon, prowadzacy_postepowanie]
+        properties:
+          krs: {$ref: '#/$defs/krs', description: "KRS Zamawiającego, jeśli jawnie podany."}
+          nazwa:
+            type: [string, "null"]
+            x-source: text
+            x-type: organization
+            description: "Pełna nazwa Zamawiającego."
+          nip: {$ref: '#/$defs/nip', description: "NIP Zamawiającego, jeśli jawnie podany."}
+          regon: {$ref: '#/$defs/regon', description: "REGON Zamawiającego, jeśli jawnie podany."}
+          prowadzacy_postepowanie:
+            x-null-when-singleton: true
+            enum: [0, 1, null]
+            x-source: derived
+            description: >-
+              null - jeden zamawiający lub brak informacji; przy kilku zamawiających 1 - oznaczony jako
+              prowadzący postępowanie / lider, 0 - pozostali.
+    ZamowieniePubliczne:
+      type: object
+      additionalProperties: false
+      required: [numer_bzp, numer_postepowania, numer_ted, tytul]
+      properties:
+        numer_bzp:
+          type: [string, "null"]
+          pattern: '^\d{4}/BZP\d{8}(/\d{2})?$'
+          x-source: text
+          x-type: bzp
+          description: "Numer ogłoszenia w BZP, format 'YYYY/BZP########' (opcjonalnie '/##'), bez spacji. Nie numer TED."
+        numer_postepowania:
+          type: [string, "null"]
+          x-source: text
+          x-spelling: majority  # OCR: pisownia z większości powtórzeń (nagłówek, stopki stron)
+          description: "Numer referencyjny / znak postępowania, np. 'ZP.039.2025', 'DZP.260.11.2025'."
+        numer_ted:
+          type: [string, "null"]
+          pattern: '^\d{6,9}-\d{4}$'
+          x-source: normalized
+          x-type: ted
+          description: "Numer ogłoszenia TED w formacie 'NNNNNN-YYYY' (zapis 'YYYY/S ###-NNNNNN' sprowadzany do tego formatu)."
+        tytul:
+          type: [string, "null"]
+          x-source: text
+          description: "Tytuł (nazwa) zamówienia lub postępowania."
+
+# Wzorce w classification/extraction: tekst złożony (małe litery, bez polskich znaków, "ł" -> "l").
+# Kropka zamiast "l" (odwo.anie) łapie też błąd OCR "ł" -> "t".
+classification:
+  min_score: 6
+  rules:
+    - {pattern: '^\s*odwo.anie\s*$', weight: 4, similar: odwolanie}  # tytuł w osobnej linii (pod blokiem stron)
+    - {pattern: 'prezes\w* krajowej izby odwo.awczej', weight: 2}
+    - {pattern: '^\s*odwo.ujac\w*\s*:', weight: 2}
+    - {pattern: 'wnosz\w* odwo.anie|wnosz\w* o\s*:', weight: 1}
+    - {pattern: 'sygn\. akt|^\s*(wyrok|postanowienie|uchwala)\b|ogloszenie o zamowieniu', weight: -8, zone: title}
+
+extraction:
+  entities:
+    Zamawiajacy:
+      name_field: nazwa
+      scope: podmioty_zamawiajacy
+      boundaries: ['(?:^|\n)[ \t]*\d+[.)][ \t]+']
+      identifiers: {krs: krs, nip: nip, regon: regon}
+      # Dopisek w punkcie listy jednego zamawiającego: „- Zamawiający prowadzący postępowanie”, „(lider)”.
+      flags: [{field: prowadzacy_postepowanie, pattern: 'prowadzac\w* postepowani|\blider\w*\b'}]
+  sections:
+    # Ownership evidence has its own broad header scope; it does not change values sent to the LLM.
+    # Końce sekcji stron rozpoznają też etykietę z dwukropkiem w środku linii: tekst z PDF-ów
+    # z nagłówkiem w dwóch kolumnach skleja linie („…@kancelaria.example Zamawiający:”).
+    podmioty_zamawiajacy:
+      start: ['^\s*zamawiaj\w*\b[^:\f]{0,300}:']
+      end: ['^\s*odwo.ujac\w*\s*:', '^\s*wykonawca', '^\s*dotyczy', '^\s*odwo.anie\s*$', '^\s*wpis',
+            '\bodwo.ujac\w*\s*:', '\bdotyczy\s*:']
+      max_chars: 3000
+    pierwsza_strona:
+      start: ['\A']
+      end: ['\f']
+      include_start: true
+    odwolujacy:
+      start: ['^\s*odwo.ujac\w*\s*:']
+      end: ['^\s*zamawiaj', '^\s*wykonawca wybrany', '^\s*dotyczy', '^\s*odwo.anie\s*$', '^\s*prezes krajowej',
+            '\bzamawiaj\w*\s*:', '\bwykonawca wybrany\b', '\bdotyczy\s*:']
+      max_chars: 1200
+    zamawiajacy:
+      start: ['^\s*zamawiaj\w*\s*:']
+      end: ['^\s*odwo.ujac\w*\s*:', '^\s*wykonawca', '^\s*dotyczy', '^\s*odwo.anie', '^\s*przystepujac', '^\s*wartosc zamowienia', '^\s*wpis',
+            '\bodwo.ujac\w*\s*:', '\bdotyczy\s*:', '\bwykonawca wybrany\b']
+      max_chars: 800
+    dotyczy:
+      start: ['^\s*dotyczy\s*:?', 'w postepowaniu o udzielenie zamowienia']
+      end: ['^\s*odwo.anie\s*$', '^\s*wartosc zamowienia', '^\s*wpis od', '^\s*dzialajac']
+      max_chars: 1200
+    # Pierwsza zaskarżona czynność: pierwszy punkt listy po „wobec … :” / „polegających na:”,
+    # a gdy listy nie ma, zdanie „Zamawiający w dniu …”.
+    czynnosc:
+      start:
+        - '(?:wobec|polegajac\w* na|od czynnosci)[^:\n]{0,120}:\s*(?:1[.)]|a\))'
+        - 'zamawiajac\w* w dniu'
+      end: ['\n\s*(?:2[.)]|b\))\s', '\n\s*zarzut', '\n\s*zaskarzon']
+      max_chars: 400
+  fields:
+    OdwolanieKIO.data:
+      kind: regex
+      regex: '^\s*(?!dnia|data|z dnia)[a-z][a-z\- ]{1,40}?,?\s+(?:dnia\s+)?(?P<value>\d{1,2}[ .\-/][a-z0-9]+[ .\-/]\d{4})\s*(?:r\.|roku)?\s*$'
+      type: date
+      scope: pierwsza_strona
+    OdwolanieKIO.miejscowosc:
+      kind: regex
+      regex: '^\s*(?!dnia|data|z dnia)(?P<value>[a-z][a-z\- ]{1,40}?),?\s+(?:dnia\s+)?\d{1,2}[ .\-/][a-z0-9]+[ .\-/]\d{4}\s*(?:r\.|roku)?\s*$'
+      type: text
+      scope: pierwsza_strona
+    OdwolanieKIO.czynnosc_powod_id:
+      kind: first_match
+      scope: czynnosc
+      pick: earliest  # przedmiot czynności, który pada pierwszy („treści SWZ … i wzoru umowy” -> SWZ)
+      cases:  # przy tym samym miejscu wygrywa wcześniejszy na liście
+        - {pattern: 'zaniecha\w* odrzuc|nie odrzuci', value: 7}
+        - {pattern: 'zaniecha\w* wyklucz|nie wykluczy', value: 8}
+        - {pattern: 'zaniecha\w* uniewazni|nie uniewazni', value: 10}
+        - {pattern: 'odpowiedz\w*|wyjasnie\w* (do )?(tresci )?(swz|specyfikacji)', value: 6}
+        - {pattern: 'modyfik|zmienil\w* (tresc )?(swz|specyfikac)|zmian\w* (tresci )?(swz|specyfikacji)', value: 5}
+        - {pattern: 'projektowan\w* postanowien|wzor\w* umowy', value: 12}
+        - {pattern: 'opis\w* przedmiotu zamowienia|\bopz\b', value: 11}
+        - {pattern: 'specyfikac\w* warunkow zamowienia|\bswz\b', value: 4}
+        - {pattern: 'wyklucz', value: 3}
+        - {pattern: 'odrzuc', value: 1}
+        - {pattern: 'uniewazni', value: 9}
+        - {pattern: 'wybor\w*|wybral|najkorzystniejsz', value: 2}
+    OdwolanieKIO.czynnosc_opis: {kind: vocabulary, vocabulary: czynnosc_powod, key_field: OdwolanieKIO.czynnosc_powod_id}
+    OdwolanieKIO.czynnosc_dzien: {kind: first, type: date, scope: czynnosc}
+    Odwolujacy[].nazwa:
+      - kind: regex  # Jawna etykieta lidera wskazuje rolę wymaganą w polu.
+        select_entity: true
+        regex: 'lider\w*(?: konsorcjum)?\s*:[ \t]*\n?[ \t]*(?P<value>[^\n]+)'
+        type: text
+        scope: odwolujacy
+      - {kind: first_line, scope: odwolujacy, continuation: ['(ul|al|pl|os)\.', '\d{2}-\d{3}', 'krs', 'nip', 'regon', 'e-?mail', 'tel', 'reprezent', 'adres', 'siedzib']}
+    Odwolujacy[].krs: {kind: labeled, labels: ['krs'], type: krs, window: 30, scope: odwolujacy}
+    Odwolujacy[].nip: {kind: labeled, labels: ['nip'], type: nip, window: 30, scope: odwolujacy}
+    Odwolujacy[].regon: {kind: labeled, labels: ['regon'], type: regon, window: 30, scope: odwolujacy}
+    Odwolujacy[].przez-pelnomocnika:
+      kind: flag
+      pattern: 'reprezentowan|pelnomocnik|adw\.|r\. ?pr\.|radca prawny|adwokat'
+      present: 1
+      absent: 0
+      scope: odwolujacy
+    Odwolujacy[].pelnomocnik.imie_nazwisko: {kind: persons, first: true, scope: odwolujacy}
+    Odwolujacy[].pelnomocnik.nazwa:
+      kind: labeled
+      labels: ['adres do korespond']  # OCR myli końcówkę („korespondencii”)
+      type: text
+      scope: odwolujacy
+      continuation: ['(ul|al|pl|os)\.', 'tel', 'e-?mail', '\d{2}-\d{3}']
+      cut: [',\s*(ul|al|pl|os)\.', ',\s*\d{2}-\d{3}']
+    Odwolujacy[].pelnomocnik.mail: {kind: first, type: email, scope: odwolujacy}
+    Zamawiajacy[].nazwa: {kind: first_line, scope: zamawiajacy, continuation: ['(ul|al|pl|os)\.', '\d{2}-\d{3}', 'krs', 'nip', 'regon', 'e-?mail', 'tel', 'reprezent', 'adres', 'siedzib']}
+    Zamawiajacy[].krs: {kind: labeled, labels: ['krs'], type: krs, window: 30, scope: zamawiajacy}
+    Zamawiajacy[].nip: {kind: labeled, labels: ['nip'], type: nip, window: 30, scope: zamawiajacy}
+    Zamawiajacy[].regon: {kind: labeled, labels: ['regon'], type: regon, window: 30, scope: zamawiajacy}
+    ZamowieniePubliczne.numer_bzp: {kind: first, type: bzp, scope: dotyczy}
+    ZamowieniePubliczne.numer_postepowania:
+      - &numer_postepowania
+        kind: labeled
+        labels: ['n(?:r|umer)\s+referencyjn\w*(?:\s+sprawy)?', 'znak\s+(?:sprawy|postepowania)', 'n(?:r|umer)\s+postepowania', 'oznaczenie\s+sprawy']
+        type: token
+        window: 40
+        scope: dotyczy
+      - {<<: *numer_postepowania, scope: null}
+    ZamowieniePubliczne.numer_ted: {kind: first, type: ted, scope: dotyczy}
+    ZamowieniePubliczne.tytul: {kind: quoted, labels: ['pn\.', 'pod nazwa', 'nazwa zamowienia', 'pt\.']}
+
+# Ekstrakcja LLM i scalanie z regułami (doxforge/llm/extract.py).
+llm:
+  max_chars: 15000
+  instructions:
+    - "data i miejscowosc: tylko z nagłówka pisma typu 'Miejscowość, dnia DD.MM.RRRR'. Nie bierz dat z pieczątki wpływu ani z treści. Bez takiego nagłówka oba pola null."
+    - "czynnosc_powod_id i czynnosc_dzien dotyczą PIERWSZEJ zaskarżonej czynności lub zaniechania: pierwszego punktu wyliczenia po 'wnoszę odwołanie wobec/od' albo 'polegających na'; gdy wyliczenia nie ma, czynności opisanej zdaniem 'Zamawiający w dniu …'. czynnosc_dzien to data tej czynności."
+    - "czynnosc_powod_id wybierz ze słownika czynnosc_powod; zaniechanie (np. 'zaniechanie odrzucenia oferty') ma osobny identyfikator niż czynność."
+    - "Odwołujący przy konsorcjum: nazwa i numery lidera konsorcjum."
+    - "pelnomocnik: pierwszy wymieniony pełnomocnik Odwołującego; nazwa to kancelaria lub podmiot z adresu do korespondencji; mail to e-mail z bloku Odwołującego lub pełnomocnika, nie ze stopki strony."
+    - "Zamawiający: jeśli jest kilku, podaj wszystkich; prowadzacy_postepowanie = 1 dla oznaczonego jako prowadzący postępowanie lub lider, 0 dla pozostałych; przy jednym zamawiającym null."
+    - "numer_bzp, numer_ted, numer_postepowania: tylko dla postępowania, którego dotyczy odwołanie (część 'dotyczy'), nie numery innych postępowań przywołanych w treści."
+    - "tytul: nazwa zamówienia bez cudzysłowów."
+  default_policy: llm
+  policies:
+    OdwolanieKIO.czynnosc_powod_id: rules
+    OdwolanieKIO.data: rules
+    OdwolanieKIO.czynnosc_dzien: rules
+    Odwolujacy[].krs: rules
+    Odwolujacy[].nip: rules
+    Odwolujacy[].regon: rules
+    Odwolujacy[].pelnomocnik.mail: rules
+    # „Pierwszy wymieniony” to kryterium pozycyjne: reguła persons (first) była bezbłędna na train,
+    # nowych skanach i przełamanych liniach; LLM uzupełnia, gdy reguła nic nie znajdzie.
+    Odwolujacy[].pelnomocnik.imie_nazwisko: rules
+    Zamawiajacy[].krs: rules
+    Zamawiajacy[].nip: rules
+    Zamawiajacy[].regon: rules
+    ZamowieniePubliczne.numer_bzp: rules
+    ZamowieniePubliczne.numer_ted: rules
+    ZamowieniePubliczne.numer_postepowania: rules

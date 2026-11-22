@@ -1,0 +1,169 @@
+# Klasa dokumentu: pełnomocnictwo. Opis słów kluczowych x-source: config/doc_types/odwolanie.yaml
+# Format wyniku: https://github.com/Urzad-Zamowien-Publicznych/hacknation-2026/blob/main/oczekiwane-json/pelnomocnictwo.json
+name: pelnomocnictwo
+description: >-
+  Pełnomocnictwo, w którym mocodawca (wykonawca, także kilku wspólnie) umocowuje osoby
+  do działania w jego imieniu, np. do wniesienia odwołania do Krajowej Izby Odwoławczej.
+
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  additionalProperties: false
+  required: [mocodawca, pelnomocnicy]
+  properties:
+    mocodawca:
+      type: array
+      description: "Podmioty udzielające pełnomocnictwa; może być więcej niż jeden (konsorcjum)."
+      items:
+        type: object
+        additionalProperties: false
+        required: [data, podpisujacy]
+        properties:
+          data:
+            type: object
+            additionalProperties: false
+            required: [imie_nazwisko, krs, nazwa, nip, typ]
+            properties:
+              imie_nazwisko:
+                type: [string, "null"]
+                x-source: text
+                x-type: name
+                x-null-unless: {field: typ, value: osoba_fizyczna}
+                description: "Imię i nazwisko mocodawcy w mianowniku, jeśli jest osobą fizyczną; osoba prawna: null."
+              krs: {type: [string, "null"], pattern: '^\d{10}$', x-source: text, x-type: krs, description: "KRS mocodawcy."}
+              nazwa: {type: [string, "null"], x-source: text, x-type: organization, description: "Pełna nazwa mocodawcy."}
+              nip: {type: [string, "null"], pattern: '^\d{10}$', x-source: text, x-type: nip, description: "NIP mocodawcy."}
+              typ:
+                enum: [osoba_prawna, osoba_fizyczna, null]
+                x-source: derived
+                description: "Typ mocodawcy."
+          podpisujacy:
+            type: array
+            description: "Osoby podpisujące w imieniu mocodawcy."
+            items:
+              type: object
+              additionalProperties: false
+              required: [imie_nazwisko]
+              properties:
+                imie_nazwisko: {type: [string, "null"], x-source: text, x-type: name, description: "Imię i nazwisko podpisującego."}
+    pelnomocnicy:
+      type: array
+      description: "Osoby otrzymujące pełnomocnictwo."
+      items:
+        type: object
+        additionalProperties: false
+        required: [imie_nazwisko, pesel]
+        properties:
+          imie_nazwisko:
+            type: [string, "null"]
+            x-source: text
+            x-type: name
+            description: "Imię i nazwisko pełnomocnika w mianowniku, bez tytułu zawodowego."
+          pesel:
+            # W etykietach organizatora PESEL jest stringiem (zachowuje zera wiodące), mimo liczby w przykładzie formatu.
+            type: [string, "null"]
+            pattern: '^\d{11}$'
+            x-source: text
+            x-type: pesel
+            description: "PESEL pełnomocnika, jeśli podany."
+
+# Wzorce w classification/extraction: tekst złożony (małe litery, bez polskich znaków, "ł" -> "l").
+classification:
+  min_score: 5
+  rules:
+    # Samo przywołanie dokumentu w narracji jest słabą wskazówką.
+    - {pattern: 'pelnomocnictw', weight: 1, zone: title}
+    - {pattern: '^\s*(?:szczegolne |ogolne |procesowe )?pelnomocnictw[o0]\b', weight: 4, zone: title, similar: pelnomocnictwo}
+    - {pattern: 'mocodaw', weight: 2}
+    - {pattern: 'udziela\w* pelnomocnictw|ustanawia\w* pelnomocnik|pelnomocnictwa udziela', weight: 2}
+    - {pattern: 'sygn\. akt|^\s*(wyrok|postanowienie)\b', weight: -6, zone: title}
+
+extraction:
+  entities:
+    mocodawca:
+      name_field: data.nazwa
+      scope: mocodawca
+      boundaries: ['(?:^|[;\n])[ \t]*\d+[.)][ \t]+', '[ \t]+\d+\)[ \t]+(?=[a-z])']
+      identifiers: {data.krs: krs, data.nip: nip}
+      relations:
+        - field: podpisujacy
+          value_field: imie_nazwisko
+          start: '^[ \t]*w imieniu[ \t]+(?P<owner>[^\n]+?)[ \t]*:[ \t]*$'
+          end: ['^[ \t]*pelnomocnictwo przyjmuje\b', '^[ \t]*przyjecie pelnomocnictwa\b']
+  sections:
+    # Część pisma przed udzieleniem pełnomocnictwa: dane mocodawcy (jednego lub kilku).
+    mocodawca:
+      start: ['\A']
+      include_start: true
+      end: ['udziela\w* pelnomocnictw', 'ustanawia\w*', '^\s*pelnomocni(k|cy)\b', '§ ?2']
+      max_chars: 1500
+    # Kogo umocowano: od udzielenia pełnomocnictwa do opisu, w jakiej sprawie.
+    pelnomocnicy:
+      start: ['udziela\w* pelnomocnictw\w*', 'ustanawia\w*(?: pelnomocnik\w*)?', 'upowazniam', '^\s*pelnomocni(?:k|cy)\b']
+      start_pick: earliest
+      end: ['do reprezentowania', 'do dzialania', 'w postepowaniu', '§ ?3', '^\s*(?:zamawiajacy|postepowanie|zakres)\b']
+      max_chars: 600
+  fields:
+    mocodawca[].data.nazwa:
+      - kind: regex  # konsorcjum: „1) Firma A, ul. …; 2) Firma B, ul. …”
+        regex: '(?:^|\s)\d\)\s*(?P<value>[^,;]+?),\s*(?:ul|al|pl)\.'
+        type: text
+        all: true
+        scope: mocodawca
+      - kind: regex
+        regex: 'pod firma\s+(?P<value>[^,]+?),'
+        type: text
+        scope: mocodawca
+      - kind: regex  # „Działając w imieniu Firma sp. j. (dalej …”, „… do reprezentacji Firma (KRS …”
+        regex: '(?:dzialajac w imieniu|upowazniona do reprezentacji)\s+(?P<value>[^(]+?)\s*(?:\(|,)'
+        type: text
+        scope: mocodawca
+      - kind: regex
+        regex: 'mocodawc\w* jest (?P<value>[^\n]+?)(?:,\s*(?:ul\.|al\.|pl\.|z siedziba|adres|krs|nip|regon)|\s+\(dalej)'
+        type: text
+      - kind: labeled
+        labels: ['^\s*mocodawca\b']
+        type: text
+        scope: mocodawca
+        cut: [',\s*(ul|al|pl|os)\.', ',\s*\d{2}-\d{3}', ',?\s*z siedziba']
+      - kind: regex  # akapit pod tytułem: „PEŁNOMOCNICTWO\nFirma sp. z o.o., ul. …” / „… z siedzibą w …”
+        regex: '^\s*pelnomocnictwo\s*\n(?P<value>[^\n]+?)(?:,\s*(?:ul|al|pl)\.|\s+z siedziba|\s*\()'
+        type: text
+    mocodawca[].data.krs: {kind: labeled, labels: ['krs'], type: krs, window: 30, all: true, scope: mocodawca}
+    mocodawca[].data.nip: {kind: labeled, labels: ['nip'], type: nip, window: 30, all: true, scope: mocodawca}
+    mocodawca[].data.typ:
+      kind: first_match
+      scope: mocodawca
+      cases:
+        - {pattern: 'dzialalnosc\w* gospodarcz|ceidg|centralnej ewidencji', value: osoba_fizyczna}
+        - {pattern: 'krs|sp\.|s\.a\.|spolk', value: osoba_prawna}
+    mocodawca[].data.imie_nazwisko:
+      kind: regex
+      regex: 'nizej podpisan\w*\s+(?P<value>[a-z\-]+\s+[a-z\-]+)\s*,\s*prowadzac'
+      type: name
+      scope: mocodawca
+    mocodawca[].podpisujacy[].imie_nazwisko:
+      - {kind: signatories}
+      - kind: regex  # „reprezentowana przez: Jan Nowak - Prezes”, podpis elektroniczny „podpisany przez Jan Nowak”
+        regex: '(?:reprezentowan\w* przez|podpisany przez)\s*:?\s*(?!osob|niz)(?P<value>[a-z\-]+ [a-z\-]+)'
+        type: name
+        all: true
+    pelnomocnicy[].imie_nazwisko:
+      - {kind: persons, scope: pelnomocnicy}
+      - {kind: name_lines, scope: pelnomocnicy}
+      - {kind: persons}
+
+# Ekstrakcja LLM i scalanie z regułami (doxforge/llm/extract.py).
+llm:
+  max_chars: 8000
+  instructions:
+    - "mocodawca: podmiot udzielający pełnomocnictwa; przy konsorcjum każdy członek osobno. typ = osoba_fizyczna, gdy mocodawcą jest osoba (np. przedsiębiorca wpisany do CEIDG): wtedy imie_nazwisko to ta osoba, a nazwa to firma, pod którą działa."
+    - "podpisujacy: osoby podpisujące w imieniu mocodawcy (pod podpisem, 'reprezentowana przez', podpis elektroniczny 'podpisany przez'). Nie wpisuj pełnomocników, którzy przyjmują pełnomocnictwo."
+    - "pelnomocnicy: wszystkie osoby umocowane, w mianowniku; pesel tylko gdy podany przy tej osobie."
+  default_policy: llm
+  policies:
+    # Status prawny wynika z jawnych znaczników (CEIDG/działalność gospodarcza vs KRS/forma spółki):
+    # reguła bez błędów na train, nowych skanach i przełamanych liniach; od niej zależy imie_nazwisko.
+    mocodawca[].data.typ: rules
+    mocodawca[].data.krs: rules
+    mocodawca[].data.nip: rules

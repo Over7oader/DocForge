@@ -1,0 +1,10 @@
+{
+  "przelew_bankowy": {
+    "tytul": "Zwrot zaliczki za salę",
+    "data_operacji": "2025-04-13",
+    "kwota": 84.7,
+    "numer_transakcji": null,
+    "z_rachunku": "63111111111111111111111111",
+    "na_rachunek": "49222222222222222222222222"
+  }
+}

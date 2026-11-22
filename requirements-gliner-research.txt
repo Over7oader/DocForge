@@ -1,0 +1,7 @@
+# Optional CPU experiment, isolated from the contest environment.
+# Install torch from the official CPU index first, then install this file.
+# uv pip install --python runs/cpu-research/gliner-venv/bin/python --index-url https://download.pytorch.org/whl/cpu torch==2.15.0
+gliner2[local]==2.2.0
+transformers==5.24.0
+sentencepiece==0.2.2
+protobuf==7.35.0
