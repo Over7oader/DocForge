@@ -4,11 +4,32 @@ Zamiana dokumentów PDF sprawy odwoławczej KIO (odwołanie, pełnomocnictwo, po
 na JSON w formacie organizatora [HackNation 2026 / UZP](https://github.com/Urzad-Zamowien-Publicznych/hacknation-2026).
 Analiza zadania i plan: [ANALIZA.md](ANALIZA.md).
 
-**Stan: M0–M2, M4, klasyfikator regułowy i integracja M5. Przebieg M5 trwa; pełna walidacja generalizacji i czasu jest otwarta.**
-Przegląd jakości i przekazanie ustaleń Claude’owi w plikach projektu: [CR](docs/reviews/2026-11-21-pipeline-cr.md).
-Wynik 0,9793 pochodzi z reguł na train; nie jest wynikiem modelu na niezależnym teście.
-Działa odczyt PDF (warstwa tekstu albo OCR), klasyfikacja po treści, ekstrakcja regułami z konfiguracji
-i opcjonalnie LLM. Wyniki pomiarów: [ANALIZA.md](ANALIZA.md) §16.
+**Stan: gotowe do oceny.** Działa CLI (`./start.sh`: `input/` → `output/`, JSON na każdy PDF, `{}` dla
+dokumentu spoza klas) i webowy podgląd ekstrakcji (`./start_gui.sh`). LLM: `ministral-8b-2512`
+(Apache-2.0) przez API Mistral AI w UE. Szczegóły pomiarów i decyzji:
+[raport z przeglądu](docs/reviews/2026-11-22-claude-review.md).
+
+| Pomiar (proxy metryki z Discorda, F1) | Wynik |
+|---|---:|
+| hold-out: 15 skanów + 4 negatywy, mierzony jednorazowo | 0,981 (exact 0,955) |
+| inne łamanie linii, świeże seedy (layout spoza train) | 0,9998 |
+| zdegradowane skany 150 dpi, świeży zbiór | 0,994 |
+| 150 PDF na VM oceniającej (2 vCPU), zimny cache | 625 s |
+
+Zbiór train służył do budowy reguł, więc jego wynik nie jest miarą generalizacji. Odporność
+mierzymy na zbiorach pochodnych z tym samym goldem (`scripts/stress_reflow.py`,
+`scripts/augment_scans.py`).
+
+### Zgodność z wymaganiami zadania
+
+| Wymaganie | Jak |
+|---|---|
+| Python 3.13+, `requirements.txt`, prosta komenda | `pip install -r requirements.txt`, `./start.sh` / `start.bat`; VM: `setup_vm.sh`, `RUN.md` |
+| Tylko open source, CPU bez GPU, LLM po API w UE | OCR lokalnie (PP-OCR, Tesseract); Ministral 3 8B przez `api.eu.mistral.ai` |
+| Rozpoznanie typu po treści, JSON zgodny z `oczekiwane-json` | klasyfikacja wzorcami z YAML; walidacja wyniku JSON Schema |
+| Nowe typy bez zmiany kodu | jeden plik `config/doc_types/<typ>.yaml` albo rejestracja w GUI |
+| Transparentność ekstrakcji | GUI podświetla źródło wartości; każda wartość z LLM weryfikowana z tekstem |
+| Skany | ensemble OCR, budżet czasu 2640 s z przełączaniem na jeden silnik |
 
 ## Jak to działa
 
