@@ -49,7 +49,7 @@ Webowy podgląd ekstrakcji (Streamlit) uruchamiany lokalnie:
 
 ```bash
 pip install -r requirements.txt -r requirements-web.txt
-streamlit run app.py
+./start_gui.sh            # albo: streamlit run app.py; domyślnie port 8080, dostęp z sieci
 ```
 
 Co daje (cała logika w `webapp/`, rdzeń pipeline'u bez zmian):

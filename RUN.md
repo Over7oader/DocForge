@@ -19,3 +19,9 @@ dokumenty nieukończone w budżecie dostają `{}`).
 - OCR działa lokalnie na CPU (PP-OCRv6, PP-OCRv5, Tesseract); modele są już pobrane.
 
 Instalacja (już wykonana na tym serwerze): `./setup_vm.sh`.
+
+## Interfejs webowy (podgląd ekstrakcji)
+
+Działa stale pod `http://20.215.210.103:8080` (start po restarcie: crontab `@reboot`). Uruchamiany
+z osobnej kopii `/opt/solution/gui`, więc typy rejestrowane w GUI nie zmieniają konfiguracji
+używanej przez `./start.sh`. Ręczne uruchomienie: `cd /opt/solution/gui && ./start_gui.sh`.
